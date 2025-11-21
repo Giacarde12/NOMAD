@@ -1,4 +1,4 @@
-import React, { useRef, useMemo, useState } from 'react';
+import React, { useRef, useState } from 'react';
 import { useFrame, useThree } from '@react-three/fiber';
 import { Text, MeshDistortMaterial, Float } from '@react-three/drei';
 import * as THREE from 'three';
@@ -42,6 +42,7 @@ const CentralBubble: React.FC<{ mode: AtmosphereMode }> = ({ mode }) => {
             // Pulse scale
             const breath = Math.sin(state.clock.elapsedTime * 0.5) * 0.05;
             const targetScale = hovered ? 2.2 : 2.0;
+            // Smooth lerp for scale
             meshRef.current.scale.lerp(new THREE.Vector3(targetScale + breath, targetScale + breath, targetScale + breath), 0.05);
         }
     });
@@ -67,6 +68,7 @@ const CentralBubble: React.FC<{ mode: AtmosphereMode }> = ({ mode }) => {
                         transparent
                         opacity={0.6}
                         transmission={0.5}
+                        toneMapped={false}
                     />
                 </mesh>
             </Float>
@@ -83,6 +85,8 @@ const CentralBubble: React.FC<{ mode: AtmosphereMode }> = ({ mode }) => {
                     anchorX="center"
                     anchorY="middle"
                     fillOpacity={0.8}
+                    // Prevent script error from troika-three-text worker
+                    onSync={() => {}} 
                  >
                     {MANIFESTO_TEXT}
                  </Text>
@@ -135,9 +139,6 @@ const OrbitingBubble: React.FC<{
             const z = Math.sin(angle) * item.orbitRadius;
             
             containerRef.current.position.set(x, item.yOffset + Math.sin(t + index) * 0.5, z);
-            
-            // Billboard effect for the container so text always faces front relative to the container
-            // Actually we want the bubble to stay 3D but text to face cam.
         }
     });
 
@@ -185,6 +186,7 @@ const BillboardText: React.FC<{ label: string; sub?: string; hovered: boolean }>
                 anchorX="center"
                 anchorY="bottom"
                 font="https://fonts.gstatic.com/s/inter/v12/UcCO3FwrK3iLTeHuS_fvQtMwCp50KnMw2boKoduKmMEVuLyfAZ9hjp-Ek-_EeA.woff"
+                onSync={() => {}}
             >
                 {label}
             </Text>
@@ -196,6 +198,7 @@ const BillboardText: React.FC<{ label: string; sub?: string; hovered: boolean }>
                 anchorY="top"
                 font="https://fonts.gstatic.com/s/inter/v12/UcCO3FwrK3iLTeHuS_fvQtMwCp50KnMw2boKoduKmMEVuLyfAZ9hjp-Ek-_EeA.woff"
                 fillOpacity={hovered ? 0.6 : 0}
+                onSync={() => {}}
             >
                 {sub}
             </Text>

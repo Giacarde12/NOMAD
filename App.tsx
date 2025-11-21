@@ -12,51 +12,80 @@ import Cursor from './components/Cursor';
 const App: React.FC = () => {
   const [mode, setMode] = useState<AtmosphereMode>('SILENCE');
   const audioRef = useRef<HTMLAudioElement | null>(null);
+  const fadeIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const [started, setStarted] = useState(false);
+
+  // Initialize Audio Object
+  useEffect(() => {
+    audioRef.current = new Audio();
+    audioRef.current.loop = true;
+    audioRef.current.volume = 0;
+
+    return () => {
+        if (audioRef.current) {
+            audioRef.current.pause();
+            audioRef.current = null;
+        }
+        if (fadeIntervalRef.current) clearInterval(fadeIntervalRef.current);
+    };
+  }, []);
 
   // Audio Management Engine
   useEffect(() => {
     const config = SENSORY_CONFIGS[mode];
+    const audio = audioRef.current;
     
-    if (!audioRef.current) {
-        audioRef.current = new Audio(config.audioUrl);
-        audioRef.current.loop = true;
-        audioRef.current.volume = 0;
+    if (!audio) return;
+
+    // Function to manage volume fading
+    const fadeTo = (targetVol: number, onComplete?: () => void) => {
+        if (fadeIntervalRef.current) clearInterval(fadeIntervalRef.current);
+        
+        fadeIntervalRef.current = setInterval(() => {
+            if (!audio) return;
+            
+            const diff = targetVol - audio.volume;
+            if (Math.abs(diff) < 0.05) {
+                audio.volume = targetVol;
+                if (fadeIntervalRef.current) clearInterval(fadeIntervalRef.current);
+                fadeIntervalRef.current = null;
+                onComplete?.();
+            } else {
+                audio.volume += diff > 0 ? 0.05 : -0.05;
+            }
+        }, 50);
+    };
+
+    if (!started) {
+        // Just update source if not started, don't play
+        if (audio.src !== config.audioUrl) {
+            audio.src = config.audioUrl;
+        }
+        return;
     }
 
-    // Fade out old sound
-    const fadeOut = setInterval(() => {
-        if (audioRef.current && audioRef.current.volume > 0.05) {
-            audioRef.current.volume -= 0.05;
-        } else {
-            clearInterval(fadeOut);
-            // Switch source
-            if(audioRef.current) {
-                audioRef.current.src = config.audioUrl;
-                audioRef.current.play().catch(e => console.log("Audio play failed (user interaction needed first):", e));
-                
-                // Fade in new sound
-                const fadeIn = setInterval(() => {
-                    if (audioRef.current && audioRef.current.volume < 0.5) {
-                        audioRef.current.volume += 0.05;
-                    } else {
-                        clearInterval(fadeIn);
-                    }
-                }, 100);
-            }
-        }
-    }, 50);
+    // If started, manage transition: Fade Out -> Switch -> Play -> Fade In
+    // Note: If we are already playing the right track (e.g. on start), just fade in.
+    if (audio.src === config.audioUrl && !audio.paused) {
+        fadeTo(0.5);
+    } else {
+        fadeTo(0, () => {
+            audio.src = config.audioUrl;
+            audio.play()
+                .then(() => fadeTo(0.5))
+                .catch(e => console.warn("Audio play interrupted", e));
+        });
+    }
 
     return () => {
-       // Cleanup if needed
+        if (fadeIntervalRef.current) clearInterval(fadeIntervalRef.current);
     };
-  }, [mode]);
+  }, [mode, started]);
 
-  // Initial click to enable audio (browser policy)
-  const [started, setStarted] = useState(false);
   const handleStart = () => {
       if (!started && audioRef.current) {
           setStarted(true);
-          audioRef.current.play().catch(console.error);
+          // logic inside useEffect will pick up 'started' change and trigger playback
       }
   };
 
